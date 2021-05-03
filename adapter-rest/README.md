@@ -22,28 +22,30 @@ In summary, we have some endpoints which are async and do not block the thread (
 working on parallel requests. Also the 'client' ones instead of using a service they use a WebFlux WebClient to call an external slow REST api in order to 
 test and measure also external REST calls to other microservices.
 
-The detailed endpoints exposed can be seen on the source code, see `src/main/java/lo/poc/webflux/adapter/rest/controller/PersonController.java`
+The detailed endpoints exposed can be seen on the source code, see [PersonController.java](src/main/java/lo/poc/webflux/adapter/rest/controller/PersonController.java)
 
 ## PersonService
 This is the @Service simulating synchronous (via Thread.sleep delay) and asynchronous (via Mono.fromCallable() with the delay on the caller)
 
-The various methods exposed can be seen on the source code, see `src/main/java/lo/poc/webflux/adapter/rest/service/PersonService.java`
+The various methods exposed can be seen on the source code, see [PersonService.java](src/main/java/lo/poc/webflux/adapter/rest/service/PersonService.java)
 
 ## RoutingConfiguration
 This is a WebFlux.fn @Configuration of RouterFunction<ServerResponse>.
 
 The root path is `/personsFunction` and the endpoints are exposed ONLY on a WebFlux application, so not exposed on the WebMVC application.
 
-The various endpoints exposed can be seen on the source code, see `src/main/java/lo/poc/webflux/adapter/rest/func/RoutingConfiguration.java`
+The various endpoints exposed can be seen on the source code, see [RoutingConfiguration.java](src/main/java/lo/poc/webflux/adapter/rest/func/RoutingConfiguration.java)
 
 ## PersonClient
 This is a WebFlux WebClient which is able to call the exposed endpoints.
 
-Also included is the `main` method which can be used to simulate simultaneous parallel calls to each and every endpoint.
+Also included is the [PersonClient.java#main](src/main/java/lo/poc/webflux/adapter/rest/client/PersonClient.java#L73) method which can be used to simulate simultaneous parallel calls to each and every endpoint.
 This method also measures the time spend for completing each endpoint and logs a summary on the console.
 
 In order to call an individual application and/or individual endpoints you need to comment out the relevant applications and/or endpoints on the source code, i.e.
 ``` java
+    public static void main(String[] args) {
+...
         // Resources/Applications to run onto
         List<Tuple2<String, String>> list = Arrays.asList(
                 Tuples.of("WebFlux", "http://localhost:8082"),
@@ -58,6 +60,8 @@ In order to call an individual application and/or individual endpoints you need 
                 "/{id}/client",
                 "/{id}/clientsync"
         );
+...
+    }
 ```
 
 For example see a typical output below

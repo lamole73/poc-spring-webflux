@@ -1,28 +1,20 @@
 package lo.poc.webflux.adapter.rest.client;
 
-import lo.poc.webflux.adapter.rest.client.domain.Person;
 import lo.poc.webflux.adapter.rest.controller.domain.PersonVo;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
-import reactor.core.Disposable;
 import reactor.core.publisher.Mono;
 import reactor.util.function.Tuple2;
 import reactor.util.function.Tuples;
 
-import java.time.Duration;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 @Slf4j
 @Service
@@ -70,7 +62,7 @@ public class PersonClient {
                 .log();
     }
 
-    public static void main(String[] args) throws InterruptedException {
+    public static void main(String[] args) {
 
         // Concurent number of calls
         int concurrent = 1;
@@ -111,17 +103,12 @@ public class PersonClient {
                 // Run
                 long start = System.currentTimeMillis();
                 log.info(">>>> Running for {}, endpoint {}, on {}", s.getT1(), endpoint, s.getT2());
-//                log.info(">>>>>>>>>> Before Zipping...");
                 List<Object> results = Mono.zip(calls, res -> {
-//                    log.info(">>>>>>>>>> Zipping...");
-//                    Arrays.asList(arr).forEach(e -> log.info(">>>>>>>>>> Got {}", e));
-
                     // Check if we had an error
                     Optional<Object> firstError = Arrays.stream(res).filter(r -> r instanceof String).findFirst();
                     firstError.ifPresent(e -> log.error(">>>> ERROR: {}", e));
                     return Arrays.asList(res);
                 }).block();
-//                        .block(Duration.ofSeconds(10));
                 log.info(">>>> Finished {} calls for {}, endpoint {}... on {} ms", results.size(), s.getT1(), endpoint, (System.currentTimeMillis() - start));
             }
             log.info(">>>>>>>> End for {} on {} ms", s.getT1(), (System.currentTimeMillis() - startService));
