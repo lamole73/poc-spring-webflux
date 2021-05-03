@@ -10,12 +10,12 @@ Modules:
 * adapter-rest - This is the library module containing the REST endpoints which are shared between the apps
 * webapp - This is the spring MVC application using though webflux WebClient. 
   Max threads are 4 to be able to see how it can handle traffic with same threads as the WebFlux.
-  It is configured to be run on [http://localhost:8081]
+  It is configured to be run on http://localhost:8081
 * webfluxapp - This is the spring WebFlux application. 
-  It is configured to be run on [http://localhost:8082]
+  It is configured to be run on http://localhost:8082
 * mockserverapp - This is a spring MVC application containing the endpoint which takes a few seconds to complete. 
   Main purpose to be called by the webflux WebClient of other apps.
-  It is configured to be run on [http://localhost:8083]
+  It is configured to be run on http://localhost:8083
 
 ## How to setup
 Start all spring boot applications, currently 3, and watch how they communicate. 
@@ -215,9 +215,9 @@ See below the log of the PersonClient.main() execution
 # References
 
 The following references were used
-* Spring WebFlux, especially section 1.1 - [https://docs.spring.io/spring-framework/docs/current/reference/html/web-reactive.html#webflux]
-* Spring WebFlux, Concurrency Model - [https://docs.spring.io/spring-framework/docs/current/reference/html/web-reactive.html#webflux-concurrency-model]
-* Spring WebFlux, Spring MVC or WebFlux? - [https://docs.spring.io/spring-framework/docs/current/reference/html/web-reactive.html#webflux-framework-choice]
-* Spring-webflux and springboot-start-web issues - [https://programmersought.com/article/27886319313/]
-* How to Wrap a Synchronous, Blocking Call - [https://projectreactor.io/docs/core/release/reference/#faq.wrap-blocking]
-* Baeldung, Simultaneous Spring WebClient Calls - [https://www.baeldung.com/spring-webclient-simultaneous-calls]
+* Spring WebFlux, especially section 1.1 - https://docs.spring.io/spring-framework/docs/current/reference/html/web-reactive.html#webflux
+* Spring WebFlux, Concurrency Model - https://docs.spring.io/spring-framework/docs/current/reference/html/web-reactive.html#webflux-concurrency-model
+* Spring WebFlux, Spring MVC or WebFlux? - https://docs.spring.io/spring-framework/docs/current/reference/html/web-reactive.html#webflux-framework-choice
+* Spring-webflux and springboot-start-web issues - https://programmersought.com/article/27886319313/
+* How to Wrap a Synchronous, Blocking Call - https://projectreactor.io/docs/core/release/reference/#faq.wrap-blocking
+* Baeldung, Simultaneous Spring WebClient Calls - https://www.baeldung.com/spring-webclient-simultaneous-calls
