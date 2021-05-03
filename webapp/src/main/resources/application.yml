@@ -1,0 +1,29 @@
+
+server:
+  port: 8081
+  tomcat.threads.max: 4
+
+logging:
+  level:
+    reactor: INFO
+    org.springframework: DEBUG
+    org.springframework.web: DEBUG
+  pattern:
+    # See https://docs.spring.io/spring-boot/docs/current/reference/html/boot-features-logging.html#boot-features-custom-log-configuration
+    level: '%5p [%X{correlationId}]'
+
+
+# Configuration for the POC
+pocconfig:
+  # PersonClient config
+  personclient:
+    # baseUrl which points to Mock Server
+    baseUrl: http://localhost:8083
+  # PersonService config
+  personservice:
+    # The delay to inhibit on the PersonService retrieveAsync and retrieveSync methods
+    block.delay: 2000
+  # PersonController config
+  personcontroller:
+    # The max number of threads for cuncurrent calls to PersonClient on search methods
+    parallelSearchMaxThreads: 10
