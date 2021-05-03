@@ -75,19 +75,19 @@ public class PersonClient {
         // Concurent number of calls
         int concurrent = 1;
 
-        // Resources to run onto
+        // Resources/Applications to run onto
         List<Tuple2<String, String>> list = Arrays.asList(
-                Tuples.of("WebFlux", "http://localhost:8082")
-//                Tuples.of("WebMVC", "http://localhost:8081")
+                Tuples.of("WebFlux", "http://localhost:8082"),
+                Tuples.of("WebMVC", "http://localhost:8081")
         );
 
         // Endpoints to access
         List<String> endpoints = Arrays.asList(
-//                "/{id}/service"
-//                , "/{id}/serviceblock"
-//                , "/{id}/servicesync"
-                 "/{id}/client"
-//                , "/{id}/clientsync"
+                "/{id}/service",
+                "/{id}/serviceblock",
+                "/{id}/servicesync",
+                "/{id}/client",
+                "/{id}/clientsync"
         );
 
         PersonClient personClient = new PersonClient(WebClient.builder());

@@ -21,6 +21,14 @@ public class PersonService {
     @Value("${pocconfig.personservice.block.delay}")
     private Long delay = 2000L;
 
+    /**
+     * Simulates an async service call to a blocking resource (f.e. database blocking)
+     * Note this method returns immediately and does not block the calling thread
+     *
+     * @param id the id of the person to retrieve
+     * @return a Mono of the PersonVo data
+     * @throws PersonNotFoundException in case id is greater {@link #MAX_ID} to simulate the not found
+     */
     public Mono<PersonVo> retrieveAsync(@NonNull Long id) throws PersonNotFoundException {
         log.info("retrieveAsync {}", id);
 
@@ -32,12 +40,22 @@ public class PersonService {
 //        log.info("retrieveAsync {}, result {}", id, entity);
 //        return Mono.just(entity).delayElement(Duration.ofMillis(delay));
 
-        // Using Mono.fromCallable
+        // Using Mono.fromCallable, see https://projectreactor.io/docs/core/release/reference/#faq.wrap-blocking
         Mono<PersonVo> entity = Mono.fromCallable(() -> retrieveSync(id)).subscribeOn(Schedulers.boundedElastic());
         log.info("retrieveAsync {}, result {}", id, entity);
         return entity;
     }
 
+    /**
+     * Simulates a supposed async (however blocking) service call
+     * Please note that even though this method returns a Mono, the way it is written results on a blocking
+     * call since the delay is outside the Mono.
+     * As a consequence this method DOES NOT return immediately and blocks the calling thread.
+     *
+     * @param id the id of the person to retrieve
+     * @return a Mono of the PersonVo data
+     * @throws PersonNotFoundException in case id is greater {@link #MAX_ID} to simulate the not found
+     */
     public Mono<PersonVo> retrieveAsyncBlocking(@NonNull Long id) throws PersonNotFoundException {
         log.info("retrieveAsyncBlocking {}", id);
 
@@ -47,6 +65,14 @@ public class PersonService {
         return Mono.just(entity);
     }
 
+    /**
+     * Simulates an sync blocking service call (f.e. database blocking)
+     * Note this method does not return immediately and thus block the calling thread.
+     *
+     * @param id the id of the person to retrieve
+     * @return the PersonVo data
+     * @throws PersonNotFoundException in case id is greater {@link #MAX_ID} to simulate the not found
+     */
     public PersonVo retrieveSync(@NonNull Long id) throws PersonNotFoundException {
         log.info("retrieveSync {}", id);
         PersonVo entity = retrieve(id);

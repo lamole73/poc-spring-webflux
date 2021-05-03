@@ -7,14 +7,21 @@ The repo contains a main 'library' module the `adapter-rest` and various spring 
 As such all controllers defined on library module are exposed by the app modules.
 
 Modules:
-* adapter-rest - This is the library module containing the REST controllers which are shared between the apps
-* webapp - This is the spring MVC application using though webflux WebClient. Max threads are 4 to be able to see how it can handle traffic with same threads as the WebFlux
-* webfluxapp - This is the spring WebFlux application
-* mockclientapp - This is a spring MVC application containing the endpoint which takes a few seconds to complete. Main purpose to be called by the webflux WebClient of other apps.
+* adapter-rest - This is the library module containing the REST endpoints which are shared between the apps
+* webapp - This is the spring MVC application using though webflux WebClient. 
+  Max threads are 4 to be able to see how it can handle traffic with same threads as the WebFlux.
+  It is configured to be run on [http://localhost:8081]
+* webfluxapp - This is the spring WebFlux application. 
+  It is configured to be run on [http://localhost:8082]
+* mockserverapp - This is a spring MVC application containing the endpoint which takes a few seconds to complete. 
+  Main purpose to be called by the webflux WebClient of other apps.
+  It is configured to be run on [http://localhost:8083]
 
 ## How to setup
 Start all spring boot applications, currently 3, and watch how they communicate. 
-The `main` method of the `PersonClient` can be used to make multiple parallel calls to the endpoints exposed by the apps.
+
+The `main` method of the `PersonClient` can be used to make multiple parallel calls to the endpoints exposed by the apps, 
+see `adapter-rest/README.md` of how to configure it.
 
 ## Conclusion
 During the analysis the following behaviour were observer.
@@ -47,7 +54,7 @@ In order to make individual calls we have to change the PersonClient.main() meth
 When you return `Mono` both WebMVC and WebFlux work fine. WebMVC works fine even with a small number of thread (4).
 The main issue here is that the async should be all the way and you should have no blocking call from the moment the controller endpoint starts until it finishes.
 This can be easily observed by calling endpoints `/persons/{id}/servicesync` and `persons/{id}/client`.
-The former calls the service which blocks for x seconds, while the latter calls webflux client which in turn calls the mockclientapp which blocks for x seconds.
+The former calls the service which blocks for x seconds, while the latter calls webflux client which in turn calls the mockserverapp which blocks for x seconds.
 TODO: The test which can be started by `PersonClient.main()` consists of multiple parallel calls (32) which we expect to finish in a few seconds. The observation is the following:
 
 #### WebMVC (max threads 4)
@@ -62,7 +69,7 @@ TODO: The test which can be started by `PersonClient.main()` consists of multipl
   but since the threads are not blocked, tomcat is able to cope with or the requests without any problem.
   Up until this point we see that the `nio-8081-exec-X` threads are reused to make the `onSubscribe` and `request(unbounded)` event calls, and we see
   that all the 32 calls complete immediately, i.e. in around 0.5 second time.
-  Then the webflux client makes the actual calls to the mockclientapp and as soon as the mockclientapp starts to respond we see the `ctor-http-nio-Y` threads
+  Then the webflux client makes the actual calls to the mockserverapp and as soon as the mockserverapp starts to respond we see the `ctor-http-nio-Y` threads
   are starting to respond with the `onNext(PersonVo...` and `onComplete()` events which finally respond the endpoint asynchronously,
   i.e. resuming the async response `[nio-8081-exec-3] s.w.s.m.m.a.RequestMappingHandlerAdapter : Resume with async result [PersonVo(id=15,`
   and finally responding `[nio-8081-exec-3] o.s.web.servlet.DispatcherServlet        : Exiting from "ASYNC" dispatch, status 200`  
@@ -108,10 +115,10 @@ see https://docs.spring.io/spring-framework/docs/current/reference/html/web-reac
 * On the call to `/persons/{id}/client` we see all calls are processed immediately, i.e. we see the log `retrieveViaClient 1, result MonoLogFuseable`
   prior to the actual calls via the client. If we observe on the logs we also see that only 4 threads are actually active `nio-8081-exec-X` on each time
   but since the threads are not blocked are able to cope with or the requests without any problem. Then the webflux client makes the actual calls
-  to the mockclientapp.
+  to the mockserverapp.
   Up until this point we see that the `ctor-http-nio-X` threads are reused to make the `onSubscribe` and `request(unbounded)` event calls, and we see
   that all the 32 calls complete immediately, i.e. in around 0.5 second time.
-  Then as soon as the mockclientapp starts to respond we see the same `ctor-http-nio-X` threads are starting to respond with the `onNext(PersonVo...`
+  Then as soon as the mockserverapp starts to respond we see the same `ctor-http-nio-X` threads are starting to respond with the `onNext(PersonVo...`
   and `onComplete()` events which finally respond the endpoint asynchronously.
   See the initial request `[40a1fcc1-3] HTTP GET "/persons/15/client"` which is finally responded by `[40a1fcc1-3] Completed 200 OK`  
   This is expected since the endpoint thread is not blocked and as such Netty can process more than 4 requests simultaneously
@@ -204,3 +211,13 @@ See below the log of the PersonClient.main() execution
 19:40:39.655 [main] INFO  l.p.w.a.rest.client.PersonClient - >>>>>>>> End for WebMVC on 52507 ms
 19:40:39.655 [main] INFO  l.p.w.a.rest.client.PersonClient - >>>>>>>>>>>> End ALL on 91079 ms
 ```
+
+# References
+
+The following references were used
+* Spring WebFlux, especially section 1.1 - [https://docs.spring.io/spring-framework/docs/current/reference/html/web-reactive.html#webflux]
+* Spring WebFlux, Concurrency Model - [https://docs.spring.io/spring-framework/docs/current/reference/html/web-reactive.html#webflux-concurrency-model]
+* Spring WebFlux, Spring MVC or WebFlux? - [https://docs.spring.io/spring-framework/docs/current/reference/html/web-reactive.html#webflux-framework-choice]
+* Spring-webflux and springboot-start-web issues - [https://programmersought.com/article/27886319313/]
+* How to Wrap a Synchronous, Blocking Call - [https://projectreactor.io/docs/core/release/reference/#faq.wrap-blocking]
+* Baeldung, Simultaneous Spring WebClient Calls - [https://www.baeldung.com/spring-webclient-simultaneous-calls]
