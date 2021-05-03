@@ -27,7 +27,7 @@ see `adapter-rest/README.md` of how to configure it.
 During the analysis the following behaviour were observer.
 
 ### 1. Which starts, MVC or WebFlux?
-Depending on the library you have on the classpath spring will auto bootstrap the following:
+Depending on the library you have on the classpath Spring Boot will auto bootstrap the following:
 
 * WebFlux when there is only the `spring-boot-starter-webflux` on the classpath
 
