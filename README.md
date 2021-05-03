@@ -19,36 +19,57 @@ The `main` method of the `PersonClient` can be used to make multiple parallel ca
 ## Conclusion
 During the analysis the following behaviour were observer.
 
-### Which starts, MVC or WebFlux?
+### 1. Which starts, MVC or WebFlux?
 Depending on the library you have on the classpath spring will auto bootstrap the following:
-* WebFlux when there is only the `spring-boot-starter-webflux` on the classpath
-* WebMVC when there is only the `spring-boot-starter-web` on the classpath
-* WebMVC when there are both the `spring-boot-starter-web` and `spring-boot-starter-webflux` on the classpath
 
-### Async responses when making 32 concurrent requests
+* WebFlux when there is only the `spring-boot-starter-webflux` on the classpath
+
+* WebMVC when there is only the `spring-boot-starter-web` on the classpath
+
+* WebMVC when there are both the `spring-boot-starter-web` and `spring-boot-starter-webflux` on the classpath.  
+  See from https://docs.spring.io/spring-boot/docs/current/reference/html/spring-boot-features.html#boot-features-webflux that 
+  > Adding both spring-boot-starter-web and spring-boot-starter-webflux modules in your application results in Spring Boot auto-configuring Spring MVC, not WebFlux. 
+  > This behavior has been chosen because many Spring developers add spring-boot-starter-webflux to their Spring MVC application to use the reactive WebClient. 
+  > You can still enforce your choice by setting the chosen application type to SpringApplication.setWebApplicationType(WebApplicationType.REACTIVE).
+
+  However, even when `app.setWebApplicationType(WebApplicationType.REACTIVE);` is used WebMVC is started and the endpoint `/personsFunction/{id}` 
+  defined via RouterFunction (WebFlux.fn) is not exposed.
+
+* In order to have WebFlux running on tomcat see https://stackoverflow.com/questions/43472091/using-spring-boot-weblfux-with-embedded-tomcat
+  We need to include only `spring-boot-starter-tomcat` and disable `spring-boot-starter-web`
+  In this configuration the endpoint `/personsFunction/{id}` defined via RouterFunction (WebFlux.fn) is exposed.
+  
+
+### 2. Async responses when making 32 concurrent requests
 
 In order to make individual calls we have to change the PersonClient.main() method to keep the calls we want. Additionally we need to enable logging
 
 When you return `Mono` both WebMVC and WebFlux work fine. WebMVC works fine even with a small number of thread (4).
 The main issue here is that the async should be all the way and you should have no blocking call from the moment the controller endpoint starts until it finishes.
-This can be easily observed by calling endpoints `/persons/{id}/service` and `persons/{id}/client`.
+This can be easily observed by calling endpoints `/persons/{id}/servicesync` and `persons/{id}/client`.
 The former calls the service which blocks for x seconds, while the latter calls webflux client which in turn calls the mockclientapp which blocks for x seconds.
-TODO: The test consists of multiple calls (32) which we expect to finish in less that 10 seconds. The observation is the following:
+TODO: The test which can be started by `PersonClient.main()` consists of multiple parallel calls (32) which we expect to finish in a few seconds. The observation is the following:
 
 #### WebMVC (max threads 4)
-  * On the call to `/persons/{id}/service` we see 4 calls processed on every 2 seconds so the test takes a lot of time to complete. 
-    This is expected since the endpoint thread is blocked and as such tomcat can only process 4 requests simultaneously
-  * On the call to `/persons/{id}/client` we see all calls are processed immediately, i.e. we see the log `retrieveViaClient 1, result MonoLogFuseable` 
-    prior to the actual calls via the client. If we observe on the logs we also see that only 4 threads are actually active `nio-8081-exec-X` on each time 
-    but since the threads are not blocked are able to cope with or the requests without any problem. Then the webflux client makes the actual calls
-    to the mockclientapp. 
-    Up until this point we see that the `nio-8081-exec-X` threads are reused to make the `onSubscribe` and `request(unbounded)` event calls, and we see
-    that all the 32 calls complete immediately, i.e. in around 0.5 second time.
-    Then as soon as the mockclientapp starts to respond we see the `ctor-http-nio-Y` threads are starting to respond with the `onNext(PersonVo...` and `onComplete()` 
-    events which finally respond the endpoint asynchronously, i.e. `[tor-http-nio-14] o.s.w.s.adapter.HttpWebHandlerAdapter    : [535019a2] Completed 200 OK`
-    This is expected since the endpoint thread is now not blocked and as such tomcat can process more than 4 requests simultaneously 
-    since the results are returned asynchronously. 
 
+* On the call to `/persons/{id}/servicesync` we see 4 calls processed on every 2 seconds, so the test takes a lot of time to complete.
+  This is expected since the endpoint thread is blocked and as such tomcat can only process 4 requests simultaneously
+* On the call to `/persons/{id}/service` we see all calls are processed immediately. This is because the synchronous call is wrapped around
+  `Mono.fromCallable(() -> ...` and as such the thread is not blocked. See https://projectreactor.io/docs/core/release/reference/#faq.wrap-blocking  
+  This is expected since the endpoint thread is not blocked and as such Netty can process more than 4 requests simultaneously.
+* On the call to `/persons/{id}/client` we see all calls are processed immediately, i.e. we see the log `retrieveViaClient 15, result MonoLogFuseable`
+  prior to the actual calls via the client. If we observe on the logs we also see that only 4 threads are actually active `nio-8081-exec-X` on each time
+  but since the threads are not blocked, tomcat is able to cope with or the requests without any problem.
+  Up until this point we see that the `nio-8081-exec-X` threads are reused to make the `onSubscribe` and `request(unbounded)` event calls, and we see
+  that all the 32 calls complete immediately, i.e. in around 0.5 second time.
+  Then the webflux client makes the actual calls to the mockclientapp and as soon as the mockclientapp starts to respond we see the `ctor-http-nio-Y` threads
+  are starting to respond with the `onNext(PersonVo...` and `onComplete()` events which finally respond the endpoint asynchronously,
+  i.e. resuming the async response `[nio-8081-exec-3] s.w.s.m.m.a.RequestMappingHandlerAdapter : Resume with async result [PersonVo(id=15,`
+  and finally responding `[nio-8081-exec-3] o.s.web.servlet.DispatcherServlet        : Exiting from "ASYNC" dispatch, status 200`  
+  This is expected since the endpoint thread is now not blocked and as such tomcat can process more than 4 requests simultaneously
+  since the results are returned asynchronously.
+
+See log from server when calling `/persons/15/client`
 ```
 2021-05-03 12:04:06.331 DEBUG [] 1808 --- [nio-8081-exec-2] o.s.web.servlet.DispatcherServlet        : GET "/persons/15/client", parameters={}
 2021-05-03 12:04:06.332 DEBUG [] 1808 --- [nio-8081-exec-2] s.w.s.m.m.a.RequestMappingHandlerMapping : Mapped to lo.poc.webflux.adapter.rest.controller.PersonController#retrieveViaClient(Long)
@@ -77,21 +98,26 @@ TODO: The test consists of multiple calls (32) which we expect to finish in less
 
 #### WebFlux (max threads 4 which depend on the number of CPU)
 
-see https://docs.spring.io/spring-framework/docs/current/reference/html/web-reactive.html#webflux-concurrency-model)
+see https://docs.spring.io/spring-framework/docs/current/reference/html/web-reactive.html#webflux-concurrency-model
 
-    * On the call to `/persons/{id}/sync` we see 4 calls processed on every 2 seconds so the test fails.
-      This is expected since the endpoint thread is blocked and as such Netty can only process 4 requests simultaneously
-    * On the call to `/persons/{id}/client` we see all calls are processed immediately, i.e. we see the log `retrieveViaClient 1, result MonoLogFuseable`
-      prior to the actual calls via the client. If we observe on the logs we also see that only 4 threads are actually active `nio-8081-exec-X` on each time
-      but since the threads are not blocked are able to cope with or the requests without any problem. Then the webflux client makes the actual calls
-      to the mockclientapp.
-      Up until this point we see that the `ctor-http-nio-X` threads are reused to make the `onSubscribe` and `request(unbounded)` event calls, and we see
-      that all the 30 calls complete immediately, i.e. in around 0.5 second time.
-      Then as soon as the mockclientapp starts to respond we see the same `ctor-http-nio-X` threads are starting to respond with the `onNext(PersonVo...` and `onComplete()`
-      events which finally respond the endpoint asynchronously.
-      This is expected since the endpoint thread is now not blocked and as such tomcat can process more than 4 requests simultaneously
-      since the results are returned asynchronously, i.e. `[ctor-http-nio-3] o.s.w.s.adapter.HttpWebHandlerAdapter    : [e6ad439d-35] Completed 200 OK`
+* On the call to `/persons/{id}/servicesync` we see 4 calls processed on every 2 seconds, so the test takes a lot of time to complete.
+  This is expected since the endpoint thread is blocked and as such Netty can only process 4 requests simultaneously
+* On the call to `/persons/{id}/service` we see all calls are processed immediately. This is because the synchronous call is wrapped around
+  `Mono.fromCallable(() -> ...` and as such the thread is not blocked. See https://projectreactor.io/docs/core/release/reference/#faq.wrap-blocking  
+  This is expected since the endpoint thread is not blocked and as such Netty can process more than 4 requests simultaneously.
+* On the call to `/persons/{id}/client` we see all calls are processed immediately, i.e. we see the log `retrieveViaClient 1, result MonoLogFuseable`
+  prior to the actual calls via the client. If we observe on the logs we also see that only 4 threads are actually active `nio-8081-exec-X` on each time
+  but since the threads are not blocked are able to cope with or the requests without any problem. Then the webflux client makes the actual calls
+  to the mockclientapp.
+  Up until this point we see that the `ctor-http-nio-X` threads are reused to make the `onSubscribe` and `request(unbounded)` event calls, and we see
+  that all the 32 calls complete immediately, i.e. in around 0.5 second time.
+  Then as soon as the mockclientapp starts to respond we see the same `ctor-http-nio-X` threads are starting to respond with the `onNext(PersonVo...`
+  and `onComplete()` events which finally respond the endpoint asynchronously.
+  See the initial request `[40a1fcc1-3] HTTP GET "/persons/15/client"` which is finally responded by `[40a1fcc1-3] Completed 200 OK`  
+  This is expected since the endpoint thread is not blocked and as such Netty can process more than 4 requests simultaneously
+  since the results are returned asynchronously, i.e. `[ctor-http-nio-3] o.s.w.s.adapter.HttpWebHandlerAdapter    : [40a1fcc1-3] Completed 200 OK`
 
+See log from server when calling `/persons/15/client`
 ```
 2021-05-03 12:04:48.919 DEBUG [] 15052 --- [ctor-http-nio-3] o.s.w.s.adapter.HttpWebHandlerAdapter    : [40a1fcc1-3] HTTP GET "/persons/15/client"
 2021-05-03 12:04:48.920 DEBUG [] 15052 --- [ctor-http-nio-3] s.w.r.r.m.a.RequestMappingHandlerMapping : [40a1fcc1-3] Mapped to lo.poc.webflux.adapter.rest.controller.PersonController#retrieveViaClient(Long)
@@ -114,7 +140,7 @@ see https://docs.spring.io/spring-framework/docs/current/reference/html/web-reac
 2021-05-03 12:04:50.960 DEBUG [] 15052 --- [ctor-http-nio-3] o.s.w.s.adapter.HttpWebHandlerAdapter    : [40a1fcc1-3] Completed 200 OK
 ```
 
-### Making 32 concurrent requests and the results
+### 3. Making 32 concurrent requests and the results
 
 If we call the `PersonClient.main()` method it will call all endpoints.
 
@@ -128,7 +154,7 @@ have 4 thread on the server, these are not blocked so all requests are processed
 In more detail the requests to the slow endpoint are sent in parallel and the responses are returned as soon as the slow endpoint responds.
 
 One final discovery is that the endpoint `/{id}/clientsync` fails on WebFlux, reason being that we try to use block() on the Mono of the personClient. 
-This is not supported so on the server we observe the following exception
+This is not supported so on the server and we observe the following exception
 ```
 2021-05-01 19:32:13.153 ERROR [] 2872 --- [ctor-http-nio-1] a.w.r.e.AbstractErrorWebExceptionHandler : [39e88066-1457]  500 Server Error for HTTP GET "/persons/26/clientsync"
 
